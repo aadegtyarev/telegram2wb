@@ -14,6 +14,13 @@ defineRule("bot_controller", {
     },
     then: function () {
         cmd = getCmd();
+        botname = bot.getUserName();
+
+        // Если сообщение групповое, то проверяем адресата. Если адресовано не нам, то игнорируем.
+        if (cmd.chatType === "group"
+            && cmd.mentions.indexOf(bot.getUserName()) === -1) {
+            return;
+        }
 
         switch (cmd.command) {
             case "/start":

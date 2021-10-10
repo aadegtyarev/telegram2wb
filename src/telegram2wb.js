@@ -1,8 +1,7 @@
 /*
 Telegram bot on wb-rules
-v. 2.0.12
+v. 2.1.1
 */
-
 bot = {
     //Set in the init() function
     token: "", 								//Bot token can be obtained from @BotFather. 
@@ -17,13 +16,14 @@ bot = {
     mqttMsg: "Msg", 						// The topic from which the bot receives messages to send
     DebugSwitch: "Debug", 					// Debug management topic name
     EnabledSwitch: "Enabled", 				// Name of the state management topic
-    parseMode: "Markdown", 					// The type of messages to be sent. Available: Markdown, HTML
+    parseMode: "Markdown", 					// The type of messages to be sent. Available: Markdown, HTML    
 }
 
 session = {
     commandsQueue: [], //command, args
     lastReadUpdateId: 0,
     pausePoll: false,
+    username: "unknown_name",
     isDebugMode: function () {
         return getTopicValue(
             bot.deviceName,
@@ -116,10 +116,10 @@ function init(token, users, deviceName, deviceTitle) {
     });
 
     writeLog("Connecting to the server...");
-    checkConnection();
+    readMeInfo();
 }
 
-function checkConnection() {
+function readMeInfo() {
     session.pausePoll = true;
     command = 'curl -s -X POST {}/bot{}/getMe'.format(
         bot.urlServer,
@@ -131,7 +131,9 @@ function checkConnection() {
         exitCallback: function (exitCode, capturedOutput) {
             if (exitCode === 0) {
                 if (checkConnectStatus(capturedOutput)) {
-                    writeLog("Connected to the server.");
+                    writeDebug("readMeInfo", capturedOutput);
+                    writeLog("Connected to the server.\n");
+                    writeLog(getParsedMeInfo(capturedOutput));
                 }
                 session.pausePoll = false;
                 return;
@@ -203,8 +205,9 @@ function getResultType(result) {
     return type;
 }
 
-function getCommandArgs(text, startPos) {
+function getCommandArgs(text) {
     result = text.match(/"(.*?)"/);
+    startPos = 0;
 
     if (Boolean(result) && result.index === startPos + 1) {
         return result[1];
@@ -358,25 +361,25 @@ function sendMessage(msg) {
     });
 }
 
-function pushCommand(chatId, messageId, command, args) {
-    writeDebug("pushCommand", "chatId: {}, messageId: {}, command: {}, args: {}".format(
+function pushCommand(chatId, chatType, mentions, messageId, command, args) {
+    writeDebug("pushCommand", "chatId: {}, chatType: {}, mentions: {}, messageId: {}, command: {}, args: {}".format(
         chatId,
+        chatType,
+        mentions,
         messageId,
         command,
         args)
     )
     cmd = {
         chatId: chatId,
+        chatType: chatType,
+        mentions: mentions,
         messageId: messageId,
         command: command,
         args: args
     }
     count = session.commandsQueue.push(cmd);
     writeDebug("pushCommand", count);
-}
-
-function setTopicValue(deviceName, topicName, newValue) {
-    return getDevice(deviceName).getControl(topicName).setValue(newValue)
 }
 
 function writeDebug(who, text) {
@@ -403,10 +406,23 @@ function isValidUser(userName) {
     return (bot.users.indexOf(userName) != -1);
 }
 
+function getParsedMeInfo(jsonString) {
+    reply = JSON.parse(jsonString);
+    result = reply["result"];
+    session.username = "@{}".format(result["username"]);
+    botInfo = "";
+
+    botInfo += "\n|→ Bot info:";
+    botInfo += "\n| first_name: {}".format(result["first_name"]);
+    botInfo += "\n| username: {}".format(session.username);
+
+    return botInfo;
+}
+
 function parseUpdates(jsonString) {
     reply = JSON.parse(jsonString);
-
     results = reply["result"];
+    mentions = [];
 
     for (key in results) {
         resultItem = results[key];
@@ -418,7 +434,8 @@ function parseUpdates(jsonString) {
         if (isValidUser(userName)) {
             chatId = msg["chat"]["id"];
 
-            if (resultType != "my_chat_member") {
+            if (resultType != "my_chat_member" && resultType != "old_chat_member") {
+                chatType = msg["chat"]["type"];
                 text = msg["text"];
                 entities = msg["entities"];
                 messageId = msg["message_id"];
@@ -426,20 +443,35 @@ function parseUpdates(jsonString) {
                 for (item in entities) {
                     entity = entities[item];
 
-                    if (entity["type"] === "bot_command") {
-                        cmdStart = entity["offset"];
-                        cmdEnd = cmdStart + entity["length"];
+                    if (entity["type"] === "mention") {
+                        offset = entity["offset"];
+                        length = entity["length"];
+                        mentions.push(text.slice(offset, offset + length));
+                    }
 
-                        command = text.slice(cmdStart, cmdEnd);
-                        pushCommand(chatId, messageId, command, getCommandArgs(text, cmdEnd));
+                    if (entity["type"] === "bot_command") {
+                        offset = entity["offset"];
+                        length = entity["length"];
+
+                        command = text.slice(offset, offset + length);
+
+                        //check case when bot name is in the command and not in the entity
+                        usernamePos = command.indexOf(session.username);
+                        if (usernamePos != -1) {
+                            mentions.push(command.match(/@(.*?).+/)[0].trim());
+                            command = command.slice(0, usernamePos);;
+                        }
+
+                        args = getCommandArgs(text.slice(offset + length, text.length));
+                        pushCommand(chatId, chatType, mentions, messageId, command, args);
                     }
                 }
-
             }
         }
 
     }
 }
+
 
 exports.init = function (token, users, deviceName, deviceTitle) {
     init(token, users, deviceName, deviceTitle);
@@ -449,3 +481,6 @@ exports.parseMode = bot.parseMode;
 exports.pollInterval = bot.pollInterval;
 exports.mqttCmd = bot.mqttCmd;
 exports.mqttMsg = bot.mqttMsg;
+exports.getUserName = function () {
+    return session.username;
+}
