@@ -1,6 +1,16 @@
+var bot = require("telegram2wb");
+
+token = ""; // Укажите токен бота, можно узнать у @BotFather 
+allowUsers = ["username"]; // Пользователи, которым разрешено общаться с ботом
+deviceName = "telegram2wb";
+cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
+msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
+
+bot.init(token, allowUsers, deviceName);
+
 defineRule("bot_controller", {
     asSoonAs: function () {
-        return dev["telegram2wb/Cmd"];
+        return dev[cmdTopic];
     },
     then: function () {
         cmd = getCmd();
@@ -21,10 +31,10 @@ defineRule("bot_controller", {
     }
 });
 
-function cmdHelp(cmd, isStart) {
+function cmdHelp(cmd) {
     text = "Привет, я бот контроллера Wiren Board \nЯ знаю команды:\n"
     text += "/start или /help — пришлю эту справку\n"
-    text += '/getfile "/path/filename.txt" — пришлю файл `/path/filename.txt`'
+    text += '`/getfile "/path/filename.txt"` — пришлю указанный файл'
 
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
@@ -41,8 +51,8 @@ function cmdGetFile(cmd) {
 }
 
 function getCmd() {
-    jsonString = dev["telegram2wb/Cmd"];
-    dev["telegram2wb/Cmd"] = "";
+    jsonString = dev[cmdTopic];
+    dev[cmdTopic] = "";
     return JSON.parse(jsonString);
 }
 
@@ -68,5 +78,5 @@ function sendDoc(chatId, text, replyTo, document) {
 }
 
 function writeMsgToMqtt(msg) {
-    dev["telegram2wb/Msg"] = JSON.stringify(msg);
+    dev[msgTopic] = JSON.stringify(msg);
 }

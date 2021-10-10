@@ -6,12 +6,29 @@
 
 ![chat](./doc/chat.png)
 
-В примере используется контроллер команд:
+Перед работой мы инициализируем бота:
+
+```javascript
+var bot = require("telegram2wb"); // подключаем модуль
+
+token = ""; // Укажите токен бота, можно узнать у @BotFather 
+allowUsers = ["username"]; // Пользователи, которым разрешено общаться с ботом
+
+//необязательные для иниациализации переменые, но с ними удобно
+deviceName = "telegram2wb"; // Имя создаваемого виртуального устройства
+cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd); //путь к топику команд
+msgTopic = "{}/{}".format(deviceName, bot.mqttMsg); // путь к топику сообщений
+
+// инициализация бота
+bot.init(token, allowUsers, deviceName);
+```
+
+После инициализации мы описываем контроллер команд, который следит за топиком, указанным в переменной `cmdTopic` — *telegram2wb/Cmd*:
 
 ```javascript
 defineRule("bot_controller", {
     asSoonAs: function () {
-        return dev["telegram2wb/Cmd"];
+        return dev[cmdTopic];
     },
     then: function () {
         cmd = getCmd();
@@ -32,8 +49,6 @@ defineRule("bot_controller", {
     }
 });
 ```
-
-Контроллер команд следит за топиком `telegram2wb/Cmd`. 
 
 Как только в топике появляется команда, контроллер забирает её, очищает топик и вызывает функцию, которая назначена команде.
 

@@ -1,15 +1,17 @@
 /*
 Telegram bot on wb-rules
-v. 1.0.0
+v. 2.0.12
 */
 
 bot = {
-    token: "", 								//Bot token can be obtained from @BotFather
-    users: ["user_name"], 					// Array of allowed user names: ["user1"] or ["user1", "user2"]
+    //Set in the init() function
+    token: "", 								//Bot token can be obtained from @BotFather. 
+    users: [], 					            // Array of allowed user names: ["user1"] or ["user1", "user2"]
     deviceName: "telegram2wb", 				// Name of the virtual device to be created
     deviceTitle: "Telegram Bot", 			// Virtual device header
-    pollIntegval: 1000, 					//ms Interval for receiving messages from the server
-    mqttIntegval: 500, 						//ms MQTT-topics verification interval
+    // Other settings
+    pollInterval: 1000, 					//ms Interval for receiving messages from the server
+    mqttInterval: 500, 						//ms MQTT-topics verification interval
     urlServer: "https://api.telegram.org", 	// Telegram server name
     mqttCmd: "Cmd", 						// The topic where the bot publishes commands
     mqttMsg: "Msg", 						// The topic from which the bot receives messages to send
@@ -30,9 +32,18 @@ session = {
     }
 }
 
-init();
+function init(token, users, deviceName, deviceTitle) {
+    bot.token = token;
+    bot.users = users;
 
-function init() {
+    if (Boolean(deviceName)) {
+        bot.deviceName = deviceName;
+    }
+
+    if (Boolean(deviceTitle)) {
+        bot.deviceTitle = deviceTitle;
+    }
+
     writeLog("Bot initialization");
 
     device = defineVirtualDevice(bot.deviceName, {
@@ -52,7 +63,7 @@ function init() {
             return dev[bot.deviceName][bot.EnabledSwitch];
         },
         then: function () {
-            startTicker("pollTimer", bot.pollIntegval);
+            startTicker("pollTimer", bot.pollInterval);
         }
     });
 
@@ -74,7 +85,7 @@ function init() {
             return dev[bot.deviceName][bot.EnabledSwitch];
         },
         then: function () {
-            startTicker("mqttTimer", bot.mqttIntegval);
+            startTicker("mqttTimer", bot.mqttInterval);
         }
     });
 
@@ -165,7 +176,7 @@ function getMessages() {
         exitCallback: function (exitCode, capturedOutput) {
             if (exitCode === 0) {
                 if (checkConnectStatus(capturedOutput)) {
-                    writeDebug("getMessages",capturedOutput);
+                    writeDebug("getMessages", capturedOutput);
                     parseUpdates(capturedOutput);
                 }
                 session.pausePoll = false;
@@ -429,3 +440,12 @@ function parseUpdates(jsonString) {
 
     }
 }
+
+exports.init = function (token, users, deviceName, deviceTitle) {
+    init(token, users, deviceName, deviceTitle);
+};
+
+exports.parseMode = bot.parseMode;
+exports.pollInterval = bot.pollInterval;
+exports.mqttCmd = bot.mqttCmd;
+exports.mqttMsg = bot.mqttMsg;
