@@ -9,39 +9,39 @@ msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
 bot.init(token, allowUsers, deviceName);
 
 defineRule("bot_controller", {
-    asSoonAs: function () {
-        return dev[cmdTopic];
-    },
-    then: function () {
+    whenChanged: cmdTopic,
+    then: function (newValue, devName, cellName) {
         cmd = getCmd();
-        botname = bot.getUserName();
 
-        // Если сообщение групповое, то проверяем адресата. Если адресовано не нам, то игнорируем.
-        if (cmd.chatType === "group"
-            && cmd.mentions.indexOf(bot.getUserName()) === -1) {
-            return;
+        if (!isEmptyCmd(cmd)) {
+            botname = bot.getUserName();
+
+            // Если сообщение групповое, то проверяем адресата. Если адресовано не нам, то игнорируем.
+            if (cmd.chatType === "group"
+                && cmd.mentions.indexOf(bot.getUserName()) === -1) {
+                return;
+            }
+
+            switch (cmd.command) {
+                case "/start":
+                case "/help":
+                    cmdHelp(cmd)
+                    break;
+                case "/getfile":
+                    cmdGetFile(cmd)
+                    break;
+                default:
+                    cmdUnknown(cmd);
+                    break;
+            }
         }
-
-        switch (cmd.command) {
-            case "/start":
-            case "/help":
-                cmdHelp(cmd)
-                break;
-            case "/getfile":
-                cmdGetFile(cmd)
-                break;
-            default:
-                cmdUnknown(cmd);
-                break;
-        }
-
     }
 });
 
 function cmdHelp(cmd) {
     text = "Привет, я бот контроллера Wiren Board \nЯ знаю команды:\n"
     text += "/start или /help — пришлю эту справку\n"
-    text += '`/getfile "/path/filename.txt"` — пришлю указанный файл'
+    text += '/getfile "/path/filename.txt" — пришлю указанный файл'
 
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
@@ -59,11 +59,16 @@ function cmdGetFile(cmd) {
 
 function getCmd() {
     jsonString = dev[cmdTopic];
-    dev[cmdTopic] = "";
+    dev[cmdTopic] = "{}";
     return JSON.parse(jsonString);
 }
 
+function isEmptyCmd(cmd) {
+    return !Boolean(Object.keys(msg).length);
+}
+
 function sendMsg(chatId, text, replyTo) {
+    log("{} {} {}", chatId, text, replyTo)
     msg = {
         chatId: chatId,
         text: text,

@@ -53,8 +53,8 @@ function init(token, users, deviceName, deviceTitle) {
 
     device.addControl(bot.EnabledSwitch, { type: "switch", value: true });
     device.addControl(bot.DebugSwitch, { type: "switch", value: false });
-    device.addControl(bot.mqttCmd, { type: "text", value: "", readonly: true });
-    device.addControl(bot.mqttMsg, { type: "text", value: "", readonly: true });
+    device.addControl(bot.mqttCmd, { type: "text", value: "{}", readonly: true });
+    device.addControl(bot.mqttMsg, { type: "text", value: "{}", readonly: true });
 
     writeLog("Virtual device is created");
 
@@ -97,21 +97,20 @@ function init(token, users, deviceName, deviceTitle) {
     });
 
     defineRule("mqttMessage ", {
-        asSoonAs: function () {
-            return dev[bot.deviceName][bot.mqttMsg];
-        },
-        then: function () {
-            jsonString = dev[bot.deviceName][bot.mqttMsg];
+        whenChanged: "{}/{}".format(bot.deviceName, bot.mqttMsg),
+        then: function (newValue, devName, cellName) {
+            jsonString = newValue;
             writeDebug("mqttMessage", jsonString);
-            dev[bot.deviceName][bot.mqttMsg] = "";
+            dev[devName][cellName] = "{}";
 
             try {
                 msg = JSON.parse(jsonString);
             } catch (error) {
                 writeLog("Incorrect message format in MQTT topic: {}".format(error.message));
             }
-
-            sendMessage(msg);
+            if (Object.keys(msg).length){
+                sendMessage(msg);
+            }
         }
     });
 
@@ -394,8 +393,9 @@ function writeLog(text) {
 
 function writeMqttCmd() {
     queue = session.commandsQueue;
+    cmdValue = dev[bot.deviceName][bot.mqttCmd];
 
-    if (!Boolean(dev[bot.deviceName][bot.mqttCmd]) && queue.length > 0) {
+    if (cmdValue.length === 2 && queue.length > 0) {
         cmd = JSON.stringify(queue.shift());
         writeDebug("writeMqttCmd", "I write the command to the {}/{}:\n{}".format(bot.deviceName, bot.mqttCmd, cmd));
         dev[bot.deviceName][bot.mqttCmd] = cmd;
