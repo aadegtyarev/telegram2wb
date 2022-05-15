@@ -46,7 +46,7 @@ function cmdHelp(cmd) {
     text = "Привет, я бот контроллера Wiren Board \nЯ знаю команды:\n"
     text += "/start или /help — пришлю эту справку\n"
     text += '/getfile "/path/filename.txt" — пришлю указанный файл\n'
-    text += '/cputemp — пришлю температуту процессора'
+    text += '/cputemp — пришлю температуру процессора'
 
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
