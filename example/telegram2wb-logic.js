@@ -11,9 +11,10 @@ bot.init(token, allowUsers, deviceName);
 defineRule("bot_controller", {
     whenChanged: cmdTopic,
     then: function (newValue, devName, cellName) {
+
         cmd = getCmd();
 
-        if (!isEmptyCmd(cmd)) {
+        if (!isEmptyCmd(cmd)) { // Проверяем, что команда не пустая
             botname = bot.getUserName();
 
             // Если сообщение групповое, то проверяем адресата. Если адресовано не нам, то игнорируем.
@@ -30,6 +31,9 @@ defineRule("bot_controller", {
                 case "/getfile":
                     cmdGetFile(cmd)
                     break;
+                case "/cputemp":
+                    cmdCPUTemp(cmd)
+                    break;
                 default:
                     cmdUnknown(cmd);
                     break;
@@ -41,7 +45,8 @@ defineRule("bot_controller", {
 function cmdHelp(cmd) {
     text = "Привет, я бот контроллера Wiren Board \nЯ знаю команды:\n"
     text += "/start или /help — пришлю эту справку\n"
-    text += '/getfile "/path/filename.txt" — пришлю указанный файл'
+    text += '/getfile "/path/filename.txt" — пришлю указанный файл\n'
+    text += '/cputemp — пришлю температуту процессора'
 
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
@@ -57,6 +62,12 @@ function cmdGetFile(cmd) {
     sendDoc(cmd.chatId, text, cmd.messageId, cmd.args);
 }
 
+function cmdCPUTemp(cmd) {
+    text = "CPU Temperature: {}".format(dev["hwmon/CPU Temperature"]);
+    sendMsg(cmd.chatId, text, cmd.messageId);
+}
+
+
 function getCmd() {
     jsonString = dev[cmdTopic];
     dev[cmdTopic] = "{}";
@@ -64,7 +75,7 @@ function getCmd() {
 }
 
 function isEmptyCmd(cmd) {
-    return !Boolean(Object.keys(msg).length);
+    return !Object.keys(cmd).length;
 }
 
 function sendMsg(chatId, text, replyTo) {
