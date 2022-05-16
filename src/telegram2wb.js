@@ -229,10 +229,14 @@ function getTextMessageString(msg) {
     chatId = msg.chatId;
     text = msg.text;
     replyToMessage = msg.messageId;
+    ReplyMarkup = msg.replyMarkup;
 
     var params = "-d chat_id={} -d text='{}' -d parse_mode={} ".format(chatId, getPreparedText(text), bot.parseMode);
     if (Boolean(replyToMessage)) {
         params += "-d reply_to_message_id={} ".format(replyToMessage);
+    }
+    if (Boolean(ReplyMarkup)) {
+        params += "-d reply_markup='{}' ".format(ReplyMarkup);
     }
 
     return 'curl -s -X POST {}/bot{}/sendMessage {}'.format(
