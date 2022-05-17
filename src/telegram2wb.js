@@ -11,6 +11,7 @@ bot = {
     // Other settings
     pollInterval: 1000, 					//ms Interval for receiving messages from the server
     mqttInterval: 500, 						//ms MQTT-topics verification interval
+    curlCommand: "curl -s --connect-timeout 60 --max-time 30 -X POST ", // --max-time — maximum time for one request
     urlServer: "https://api.telegram.org", 	// Telegram server name
     mqttCmd: "Cmd", 						// The topic where the bot publishes commands
     mqttMsg: "Msg", 						// The topic from which the bot receives messages to send
@@ -114,13 +115,14 @@ function init(token, users, deviceName, deviceTitle) {
         }
     });
 
-    writeLog("Connecting to the server...");
+    writeLog("Connecting to the server..."); //FixMe Проблема: если по каким-то причинам мы не смогли достучаться до сервера, то ждём вечно.
     readMeInfo();
 }
 
 function readMeInfo() {
     session.pausePoll = true;
-    command = 'curl -s -X POST {}/bot{}/getMe'.format(
+    command = '{} {}/bot{}/getMe'.format(
+        bot.curlCommand,
         bot.urlServer,
         bot.token
     );
@@ -166,7 +168,8 @@ function checkConnectStatus(serverResponse) {
 function getMessages() {
     session.pausePoll = true;
     startUpdateId = session.lastReadUpdateId + 1;
-    command = 'curl -s -X POST {}/bot{}/getUpdates?offset={}'.format(
+    command = '{} {}/bot{}/getUpdates?offset={}'.format(
+        bot.curlCommand,
         bot.urlServer,
         bot.token,
         startUpdateId
@@ -239,7 +242,8 @@ function getTextMessageString(msg) {
         params += "-d reply_markup='{}' ".format(ReplyMarkup);
     }
 
-    return 'curl -s -X POST {}/bot{}/sendMessage {}'.format(
+    return '{} {}/bot{}/sendMessage {}'.format(
+        bot.curlCommand,
         bot.urlServer,
         bot.token,
         params
@@ -264,7 +268,8 @@ function getDocumentMessageString(msg) {
         params += "-F reply_to_message_id={} ".format(replyToMessage);
     }
 
-    return 'curl -s -X POST {}/bot{}/sendDocument {}'.format(
+    return '{} {}/bot{}/sendDocument {}'.format(
+        bot.curlCommand,
         bot.urlServer,
         bot.token,
         params
