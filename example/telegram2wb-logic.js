@@ -73,11 +73,11 @@ function cmdCPUTemp(cmd) {
 function cmdKbd(cmd) {
     text = "Клавиатура";
     switch (cmd.args) {
-        case "inline":
+        case "custom":
             cmdKbdCustom(cmd);
             break;
 
-        case "inline clear":
+        case "custom clear":
             cmdKbdEmpty(cmd);
             break;
 
