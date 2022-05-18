@@ -1,7 +1,7 @@
 var bot = require("telegram2wb");
 
-token = "2067631944:AAHFc9uivuKnvdYmH9layC1TtDE1MM6da-c"; // Укажите токен бота, можно узнать у @BotFather
-allowUsers = ["degtyarev_a"]; // Пользователи, которым разрешено общаться с ботом
+token = ""; // Укажите токен бота, можно узнать у @BotFather
+allowUsers = ["username"]; // Пользователи, которым разрешено общаться с ботом
 deviceName = "telegram2wb";
 cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
 msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
