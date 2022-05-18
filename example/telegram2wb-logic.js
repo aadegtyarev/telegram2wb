@@ -1,7 +1,7 @@
 var bot = require("telegram2wb");
 
-token = ""; // Укажите токен бота, можно узнать у @BotFather 
-allowUsers = ["username"]; // Пользователи, которым разрешено общаться с ботом
+token = "2067631944:AAHFc9uivuKnvdYmH9layC1TtDE1MM6da-c"; // Укажите токен бота, можно узнать у @BotFather
+allowUsers = ["degtyarev_a"]; // Пользователи, которым разрешено общаться с ботом
 deviceName = "telegram2wb";
 cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
 msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
@@ -33,6 +33,9 @@ defineRule("bot_controller", {
                     break;
                 case "/cputemp":
                     cmdCPUTemp(cmd)
+                    break;
+                case "/kbd":
+                    cmdKbd(cmd)
                     break;
                 default:
                     cmdUnknown(cmd);
@@ -67,6 +70,31 @@ function cmdCPUTemp(cmd) {
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
 
+function cmdKbd(cmd) {
+    text = "Клавиатура";
+    switch (cmd.args) {
+        case "inline":
+            cmdKbdCustom(cmd);
+            break;
+
+        default:
+            cmdUnknown(cmd);
+            break;
+    }
+}
+
+function cmdKbdCustom(cmd) {
+    text = "Клавиатура";
+    kbdCode = {
+        keyboard: [
+            ['/help'],
+            ['/lamp']],
+        'resize_keyboard': true,
+        'one_time_keyboard': true
+    };
+
+    sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
+}
 
 function getCmd() {
     jsonString = dev[cmdTopic];
@@ -95,6 +123,18 @@ function sendDoc(chatId, text, replyTo, document) {
         messageId: replyTo,
         text: text,
         document: document
+    }
+
+    writeMsgToMqtt(msg);
+}
+
+function sendKbd(chatId, text, replyTo, kbdCode) {
+    log("{} {} {} {}", chatId, text, replyTo, kbdCode)
+    msg = {
+        chatId: chatId,
+        text: text,
+        messageId: replyTo,
+        replyMarkup: kbdCode
     }
 
     writeMsgToMqtt(msg);

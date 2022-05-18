@@ -109,7 +109,7 @@ function init(token, users, deviceName, deviceTitle) {
             } catch (error) {
                 writeLog("Incorrect message format in MQTT topic: {}".format(error.message));
             }
-            if (Object.keys(msg).length){
+            if (Object.keys(msg).length) {
                 sendMessage(msg);
             }
         }
@@ -202,6 +202,10 @@ function getResultType(result) {
 
     if (result["my_chat_member"] != undefined) {
         type = "my_chat_member";
+    }
+
+    if (result["callback_query"] != undefined) {
+        type = "callback_query";
     }
 
     return type;
@@ -428,10 +432,48 @@ function getParsedMeInfo(jsonString) {
     return botInfo;
 }
 
+function parseMessage(msg) {
+    mentions = [];
+    chatId = msg["chat"]["id"];
+
+    if (resultType != "my_chat_member" && resultType != "old_chat_member") {
+        chatType = msg["chat"]["type"];
+        text = msg["text"];
+        entities = msg["entities"];
+        messageId = msg["message_id"];
+
+        for (item in entities) {
+            entity = entities[item];
+
+            if (entity["type"] === "mention") {
+                offset = entity["offset"];
+                length = entity["length"];
+                mentions.push(text.slice(offset, offset + length));
+            }
+
+            if (entity["type"] === "bot_command") {
+                offset = entity["offset"];
+                length = entity["length"];
+
+                command = text.slice(offset, offset + length);
+
+                //check case when bot name is in the command and not in the entity
+                usernamePos = command.indexOf(session.username);
+                if (usernamePos != -1) {
+                    mentions.push(command.match(/@(.*?).+/)[0].trim());
+                    command = command.slice(0, usernamePos);;
+                }
+
+                args = getCommandArgs(text.slice(offset + length, text.length));
+                pushCommand(chatId, chatType, mentions, messageId, command, args);
+            }
+        }
+    }
+}
+
 function parseUpdates(jsonString) {
     reply = JSON.parse(jsonString);
-    results = reply["result"];
-    mentions = [];
+    results = reply["result"];    
 
     for (key in results) {
         resultItem = results[key];
@@ -441,43 +483,17 @@ function parseUpdates(jsonString) {
         userName = msg["from"]["username"];
 
         if (isValidUser(userName)) {
-            chatId = msg["chat"]["id"];
-
-            if (resultType != "my_chat_member" && resultType != "old_chat_member") {
-                chatType = msg["chat"]["type"];
-                text = msg["text"];
-                entities = msg["entities"];
-                messageId = msg["message_id"];
-
-                for (item in entities) {
-                    entity = entities[item];
-
-                    if (entity["type"] === "mention") {
-                        offset = entity["offset"];
-                        length = entity["length"];
-                        mentions.push(text.slice(offset, offset + length));
-                    }
-
-                    if (entity["type"] === "bot_command") {
-                        offset = entity["offset"];
-                        length = entity["length"];
-
-                        command = text.slice(offset, offset + length);
-
-                        //check case when bot name is in the command and not in the entity
-                        usernamePos = command.indexOf(session.username);
-                        if (usernamePos != -1) {
-                            mentions.push(command.match(/@(.*?).+/)[0].trim());
-                            command = command.slice(0, usernamePos);;
-                        }
-
-                        args = getCommandArgs(text.slice(offset + length, text.length));
-                        pushCommand(chatId, chatType, mentions, messageId, command, args);
-                    }
-                }
+            switch (resultType) {
+                case "message":
+                case "edited_message":
+                case "my_chat_member":
+                    parseMessage(msg);
+                    break;
+    
+                default:
+                    break;
             }
         }
-
     }
 }
 
