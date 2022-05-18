@@ -7,7 +7,6 @@ cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
 msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
 
 bot.init(token, allowUsers, deviceName);
-bot.readCommandsOnly = false;
 
 defineRule("bot_controller", {
     whenChanged: cmdTopic,
@@ -78,6 +77,10 @@ function cmdKbd(cmd) {
             cmdKbdCustom(cmd);
             break;
 
+        case "inline clear":
+            cmdKbdEmpty(cmd);
+            break;
+
         default:
             cmdUnknown(cmd);
             break;
@@ -92,6 +95,16 @@ function cmdKbdCustom(cmd) {
             ['CPUTEMP']],
         'resize_keyboard': true,
         'one_time_keyboard': true
+    };
+
+    sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
+}
+
+function cmdKbdEmpty(cmd) {
+    text = "Удалил клавиатуру";
+    kbdCode = {
+        keyboard: [],
+        'remove_keyboard': true
     };
 
     sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
