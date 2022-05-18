@@ -7,6 +7,7 @@ cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
 msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
 
 bot.init(token, allowUsers, deviceName);
+bot.readCommandsOnly = false;
 
 defineRule("bot_controller", {
     whenChanged: cmdTopic,
@@ -87,8 +88,8 @@ function cmdKbdCustom(cmd) {
     text = "Клавиатура";
     kbdCode = {
         keyboard: [
-            ['/help'],
-            ['/lamp']],
+            ['HELP'],
+            ['CPUTEMP']],
         'resize_keyboard': true,
         'one_time_keyboard': true
     };

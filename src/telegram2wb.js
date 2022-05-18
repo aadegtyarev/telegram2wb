@@ -1,6 +1,6 @@
 /*
 Telegram bot on wb-rules
-v. 2.1.1
+v. 2.2.2
 */
 bot = {
     //Set in the init() function
@@ -17,7 +17,7 @@ bot = {
     mqttMsg: "Msg", 						// The topic from which the bot receives messages to send
     DebugSwitch: "Debug", 					// Debug management topic name
     EnabledSwitch: "Enabled", 				// Name of the state management topic
-    parseMode: "Markdown", 					// The type of messages to be sent. Available: Markdown, HTML    
+    parseMode: "Markdown", 					// The type of messages to be sent. Available: Markdown, HTML     
 }
 
 session = {
@@ -55,7 +55,7 @@ function init(token, users, deviceName, deviceTitle) {
     device.addControl(bot.EnabledSwitch, { type: "switch", value: true });
     device.addControl(bot.DebugSwitch, { type: "switch", value: false });
     device.addControl(bot.mqttCmd, { type: "text", value: "{}", readonly: true });
-    device.addControl(bot.mqttMsg, { type: "text", value: "{}", readonly: true });
+    device.addControl(bot.mqttMsg, { type: "text", value: "{}", readonly: true });    
 
     writeLog("Virtual device is created");
 
@@ -115,7 +115,14 @@ function init(token, users, deviceName, deviceTitle) {
         }
     });
 
-    writeLog("Connecting to the server..."); //FixMe Проблема: если по каким-то причинам мы не смогли достучаться до сервера, то ждём вечно.
+    defineRule("mqttDebug", {
+        whenChanged: "{}/{}".format(bot.deviceName, bot.DebugSwitch),
+        then: function (newValue, devName, cellName) {
+            session.debugMode = newValue;
+        }
+    });
+
+    writeLog("Connecting to the server..."); 
     readMeInfo();
 }
 
@@ -373,7 +380,7 @@ function sendMessage(msg) {
     });
 }
 
-function pushCommand(chatId, chatType, mentions, messageId, command, args) {
+function pushCommand(chatId, chatType, mentions, messageId, command, args, rawText) {
     writeDebug("pushCommand", "chatId: {}, chatType: {}, mentions: {}, messageId: {}, command: {}, args: {}".format(
         chatId,
         chatType,
@@ -434,10 +441,12 @@ function getParsedMeInfo(jsonString) {
 
 function parseMessage(msg) {
     mentions = [];
+    command = "";
+    args = "";
     chatId = msg["chat"]["id"];
 
     if (resultType != "my_chat_member" && resultType != "old_chat_member") {
-        chatType = msg["chat"]["type"];
+        chatType = msg["chat"]["type"];    
         text = msg["text"];
         entities = msg["entities"];
         messageId = msg["message_id"];
@@ -462,7 +471,7 @@ function parseMessage(msg) {
                 if (usernamePos != -1) {
                     mentions.push(command.match(/@(.*?).+/)[0].trim());
                     command = command.slice(0, usernamePos);;
-                }
+                }                                
 
                 args = getCommandArgs(text.slice(offset + length, text.length));
                 pushCommand(chatId, chatType, mentions, messageId, command, args);
