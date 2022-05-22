@@ -69,8 +69,8 @@ defineRule("bot_callback_controller", {
                 cmdCPUTemp(callback)
                 break;
 
-            case "kbdInlineClose":
-                cmdInlineKeyboardClose(callback)
+            case "deleteMessage":
+                cmdDeleteMessage(callback)
                 break;
         
             default:
@@ -142,7 +142,7 @@ function cmdInlineKeyboard(cmd) {
     kbdCode = {
         "inline_keyboard": [[
             { "text": "Температура процессора", "callback_data": "cpuTemp" },
-            { "text": "Закрыть клавиатуру", "callback_data": "kbdInlineClose" }
+            { "text": "Удалить сообщение", "callback_data": "deleteMessage" }
         ]],
         "resize_keyboard": true,
         "one_time_keyboard": true
@@ -151,7 +151,7 @@ function cmdInlineKeyboard(cmd) {
     sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
 }
 
-function cmdInlineKeyboardClose(cmd) {
+function cmdDeleteMessage(cmd) {
 
     rawMsg = {
         "method": "deleteMessage",
