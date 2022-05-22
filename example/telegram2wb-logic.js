@@ -192,16 +192,19 @@ function sendDoc(chatId, text, replyTo, document) {
 }
 
 function sendKbd(chatId, text, replyTo, kbdCode) {
-    log("{} {} {} {}", chatId, text, replyTo, kbdCode)
-    msg = {
-        chatId: chatId,
-        text: text,
-        messageId: replyTo,
-        replyMarkup: kbdCode
+    log("{} {} {} {}", chatId, text, replyTo, kbdCode);
+
+    rawMsg = {
+        "method": "sendMessage",
+        "chat_id": chatId,
+        "text": "'{}'".format(text),
+        "reply_to_message_id": replyTo,
+        "reply_markup": "'{}'".format(kbdCode)
     }
 
-    writeMsgToMqtt(msg);
+    sendRawMsg(rawMsg);
 }
+
 
 /* Прочее */
 function isEmptyJson(jsonString) {
