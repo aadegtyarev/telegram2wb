@@ -139,12 +139,15 @@ function readMeInfo() {
         exitCallback: function (exitCode, capturedOutput) {
             if (exitCode === 0) {
                 if (checkConnectStatus(capturedOutput)) {
-                    writeDebug("readMeInfo", capturedOutput);
                     writeLog("Connected to the server.\n");
                     writeLog(getParsedMeInfo(capturedOutput));
                 }
-                session.pausePoll = false;
-                return;
+            writeDebug("readMeInfo", "exitCode: {} | capturedOutput:{}".format(
+                    exitCode,
+                    capturedOutput
+                ));
+            session.pausePoll = false;
+            return;
             }
         }
     });
@@ -184,15 +187,26 @@ function getMessages() {
 
     runShellCommand(command, {
         captureOutput: true,
-        exitCallback: function (exitCode, capturedOutput) {
+        captureErrorOutput: true,
+        exitCallback: function (exitCode, capturedOutput, capturedErrorOutput) {
             if (exitCode === 0) {
                 if (checkConnectStatus(capturedOutput)) {
-                    writeDebug("getMessages", capturedOutput);
                     parseUpdates(capturedOutput);
                 }
-                session.pausePoll = false;
-                return;
+                writeDebug("getMessages", "exitCode: {} | capturedOutput:{}".format(
+                    exitCode,
+                    capturedOutput
+                ));
+            } else {
+                writeLog("[getMessages] exitCode: {} | capturedOutput:{} | capturedErrorOutput:{}".format(
+                    exitCode,
+                    capturedOutput,
+                    capturedErrorOutput
+                ));
             }
+
+            session.pausePoll = false;
+            return;
         }
     });
 }
