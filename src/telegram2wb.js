@@ -1,6 +1,6 @@
 /*
 Telegram bot on wb-rules
-v. 2.2.2
+v. 2.3.1
 */
 bot = {
     //Set in the init() function
@@ -14,21 +14,23 @@ bot = {
     curlCommand: "curl -s --connect-timeout 60 --max-time 30 -X POST ", // --max-time — maximum time for one request
     urlServer: "https://api.telegram.org", 	// Telegram server name
     mqttCmd: "Cmd", 						// The topic where the bot publishes commands
+    mqttCallback: "Callback", 			    // The topic where the bot publishes callbacks
     mqttMsg: "Msg", 						// The topic from which the bot receives messages to send
-    DebugSwitch: "Debug", 					// Debug management topic name
-    EnabledSwitch: "Enabled", 				// Name of the state management topic
+    debugSwitch: "Debug", 					// Debug management topic name
+    enabledSwitch: "Enabled", 				// Name of the state management topic
     parseMode: "Markdown", 					// The type of messages to be sent. Available: Markdown, HTML     
 }
 
 session = {
     commandsQueue: [], //command, args
+    callbacksQueue: [], //callbacks
     lastReadUpdateId: 0,
     pausePoll: false,
     username: "unknown_name",
     isDebugMode: function () {
         return getTopicValue(
             bot.deviceName,
-            bot.DebugSwitch
+            bot.debugSwitch
         );
     }
 }
@@ -52,16 +54,17 @@ function init(token, users, deviceName, deviceTitle) {
         cells: {}
     });
 
-    device.addControl(bot.EnabledSwitch, { type: "switch", value: true });
-    device.addControl(bot.DebugSwitch, { type: "switch", value: false });
+    device.addControl(bot.enabledSwitch, { type: "switch", value: true });
+    device.addControl(bot.debugSwitch, { type: "switch", value: false });
     device.addControl(bot.mqttCmd, { type: "text", value: "{}", readonly: true });
+    device.addControl(bot.mqttCallback, { type: "text", value: "{}", readonly: true });
     device.addControl(bot.mqttMsg, { type: "text", value: "{}", readonly: true });    
 
     writeLog("Virtual device is created");
 
     defineRule("pollTimerControl", {
         asSoonAs: function () {
-            return dev[bot.deviceName][bot.EnabledSwitch];
+            return dev[bot.deviceName][bot.enabledSwitch];
         },
         then: function () {
             startTicker("pollTimer", bot.pollInterval);
@@ -75,7 +78,7 @@ function init(token, users, deviceName, deviceTitle) {
                 getMessages();
             }
 
-            if (dev[bot.deviceName][bot.EnabledSwitch] == false) {
+            if (dev[bot.deviceName][bot.enabledSwitch] == false) {
                 timers.pollTimer.stop();
             }
         }
@@ -83,7 +86,7 @@ function init(token, users, deviceName, deviceTitle) {
 
     defineRule("mqttTimerControl", {
         asSoonAs: function () {
-            return dev[bot.deviceName][bot.EnabledSwitch];
+            return dev[bot.deviceName][bot.enabledSwitch];
         },
         then: function () {
             startTicker("mqttTimer", bot.mqttInterval);
@@ -94,6 +97,7 @@ function init(token, users, deviceName, deviceTitle) {
         when: function () { return timers.mqttTimer.firing; },
         then: function () {
             writeMqttCmd();
+            writeMqttCallback();
         }
     });
 
@@ -116,7 +120,7 @@ function init(token, users, deviceName, deviceTitle) {
     });
 
     defineRule("mqttDebug", {
-        whenChanged: "{}/{}".format(bot.deviceName, bot.DebugSwitch),
+        whenChanged: "{}/{}".format(bot.deviceName, bot.debugSwitch),
         then: function (newValue, devName, cellName) {
             session.debugMode = newValue;
         }
@@ -394,7 +398,7 @@ function sendMessage(msg) {
     });
 }
 
-function pushCommand(chatId, chatType, mentions, messageId, command, args, rawText) {
+function pushCommand(chatId, chatType, mentions, messageId, command, args) {
     writeDebug("pushCommand", "chatId: {}, chatType: {}, mentions: {}, messageId: {}, command: {}, args: {}".format(
         chatId,
         chatType,
@@ -415,6 +419,24 @@ function pushCommand(chatId, chatType, mentions, messageId, command, args, rawTe
     writeDebug("pushCommand", count);
 }
 
+function pushCallback(chatId, data, chatType, messageId) {
+    writeDebug("pushCallback", "chatId: {}, chatType: {}, messageId: {}, data: {}".format(
+        chatId,      
+        data,
+        chatType,
+        messageId
+        )
+    )
+    callback = {
+        chatId: chatId,
+        data: data,
+        chatType: chatType,
+        messageId: messageId             
+    }
+    count = session.callbacksQueue.push(callback);
+    writeDebug("pushCallback", count);
+}
+
 function writeDebug(who, text) {
     if (session.isDebugMode()) {
         writeLog("[{}] \n |→ {}".format(who, text));
@@ -433,6 +455,19 @@ function writeMqttCmd() {
         cmd = JSON.stringify(queue.shift());
         writeDebug("writeMqttCmd", "I write the command to the {}/{}:\n{}".format(bot.deviceName, bot.mqttCmd, cmd));
         dev[bot.deviceName][bot.mqttCmd] = cmd;
+    }
+}
+
+function writeMqttCallback() {
+    queue = session.callbacksQueue;
+    callbackValue = dev[bot.deviceName][bot.mqttCallback];
+
+    writeDebug("writeMqttCallback", "callbackValue.length {}".format(callbackValue.length));
+
+    if (callbackValue.length === 2 && queue.length > 0) {
+        callback = JSON.stringify(queue.shift());
+        writeDebug("writeMqttCallback", "I write the callback to the {}/{}:\n{}".format(bot.deviceName, bot.mqttCallback, callback));
+        dev[bot.deviceName][bot.mqttCallback] = callback;
     }
 }
 
@@ -494,6 +529,18 @@ function parseMessage(msg) {
     }
 }
 
+function parseCallback(callback){
+    chatId = callback["from"]["id"];
+    data = callback["data"];
+
+    if (callback.message != undefined) {
+        chatType = callback["message"]["chat"]["type"];
+        messageId = callback["message"]["message_id"];    
+    }
+
+    pushCallback(chatId, data, chatType, messageId);
+}
+
 function parseUpdates(jsonString) {
     reply = JSON.parse(jsonString);
     results = reply["result"];    
@@ -502,6 +549,8 @@ function parseUpdates(jsonString) {
         resultItem = results[key];
         session.lastReadUpdateId = resultItem["update_id"];
         resultType = getResultType(resultItem);
+        writeDebug("parseUpdates","resultType: {}".format(resultType));
+
         msg = resultItem[resultType];
         userName = msg["from"]["username"];
 
@@ -511,6 +560,9 @@ function parseUpdates(jsonString) {
                 case "edited_message":
                 case "my_chat_member":
                     parseMessage(msg);
+                    break;
+                case "callback_query":
+                    parseCallback(msg);
                     break;
     
                 default:
@@ -528,6 +580,7 @@ exports.init = function (token, users, deviceName, deviceTitle) {
 exports.parseMode = bot.parseMode;
 exports.pollInterval = bot.pollInterval;
 exports.mqttCmd = bot.mqttCmd;
+exports.mqttCallback = bot.mqttCallback;
 exports.mqttMsg = bot.mqttMsg;
 exports.getUserName = function () {
     return session.username;

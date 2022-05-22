@@ -5,16 +5,17 @@ allowUsers = ["username"]; // Пользователи, которым разр�
 deviceName = "telegram2wb";
 cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
 msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
+callbackTopic = "{}/{}".format(deviceName, bot.mqttCallback); 
 
 bot.init(token, allowUsers, deviceName);
 
-defineRule("bot_controller", {
+defineRule("bot_cmd_controller", {
     whenChanged: cmdTopic,
     then: function (newValue, devName, cellName) {
 
         cmd = getCmd();
 
-        if (!isEmptyCmd(cmd)) { // Проверяем, что команда не пустая
+        if (!isEmptyJson(cmd)) { // Проверяем, что команда не пустая
             botname = bot.getUserName();
 
             // Если сообщение групповое, то проверяем адресата. Если адресовано не нам, то игнорируем.
@@ -44,6 +45,20 @@ defineRule("bot_controller", {
         }
     }
 });
+
+defineRule("bot_callback_controller", {
+    whenChanged: callbackTopic,
+    then: function (newValue, devName, cellName) {
+
+        callback = getCallback();
+        callbackReply(callback);
+
+    }
+});
+
+function callbackReply(callback){
+    sendMsg(callback.chatId,"Callback data: {}".format(callback.data), callback.messageId)
+}
 
 function cmdHelp(cmd) {
     text = "Привет, я бот контроллера Wiren Board \nЯ знаю команды:\n"
@@ -134,8 +149,15 @@ function getCmd() {
     return JSON.parse(jsonString);
 }
 
-function isEmptyCmd(cmd) {
-    return !Object.keys(cmd).length;
+function getCallback() {
+    jsonString = dev[callbackTopic];
+    dev[callbackTopic] = "{}";
+    return JSON.parse(jsonString);
+}
+
+
+function isEmptyJson(jsonString) {
+    return !Object.keys(jsonString).length;
 }
 
 function sendMsg(chatId, text, replyTo) {
