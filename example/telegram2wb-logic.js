@@ -5,7 +5,8 @@ allowUsers = ["username"]; // Пользователи, которым разр�
 deviceName = "telegram2wb";
 cmdTopic = "{}/{}".format(deviceName, bot.mqttCmd);
 msgTopic = "{}/{}".format(deviceName, bot.mqttMsg);
-callbackTopic = "{}/{}".format(deviceName, bot.mqttCallback); 
+rawMsgTopic = "{}/{}".format(deviceName, bot.mqttRawMsg);
+callbackTopic = "{}/{}".format(deviceName, bot.mqttCallback);
 
 bot.init(token, allowUsers, deviceName);
 
@@ -13,7 +14,8 @@ defineRule("bot_cmd_controller", {
     whenChanged: cmdTopic,
     then: function (newValue, devName, cellName) {
 
-        cmd = getCmd();
+        cmd = JSON.parse(newValue);
+        dev[devName][cellName] = "{}";
 
         if (!isEmptyJson(cmd)) { // Проверяем, что команда не пустая
             botname = bot.getUserName();
@@ -35,8 +37,17 @@ defineRule("bot_cmd_controller", {
                 case "/cputemp":
                     cmdCPUTemp(cmd)
                     break;
-                case "/kbd":
+                case "/kbd":                
                     cmdKbd(cmd)
+                    break;
+                case "/kbd":                
+                    cmdKbd(cmd)
+                    break;
+                case "Inline keyboard":   
+                    cmdInlineKeyboard(cmd)
+                    break;              
+                case "Close keyboard": 
+                    cmdCloseKeyboard(cmd)
                     break;
                 default:
                     cmdUnknown(cmd);
@@ -50,21 +61,31 @@ defineRule("bot_callback_controller", {
     whenChanged: callbackTopic,
     then: function (newValue, devName, cellName) {
 
-        callback = getCallback();
-        callbackReply(callback);
+        callback = JSON.parse(newValue);
+        dev[devName][cellName] = "{}";
+       
+        switch (callback.data) {
+            case "cpuTemp":
+                cmdCPUTemp(callback)
+                break;
+
+            case "kbdInlineClose":
+                cmdInlineKeyboardClose(callback)
+                break;
+        
+            default:
+                break;
+        }
 
     }
 });
 
-function callbackReply(callback){
-    sendMsg(callback.chatId,"Callback data: {}".format(callback.data), callback.messageId)
-}
-
 function cmdHelp(cmd) {
     text = "Привет, я бот контроллера Wiren Board \nЯ знаю команды:\n"
-    text += "/start или /help — пришлю эту справку\n"
+    text += "/start или /help — справка\n"
     text += '/getfile "/path/filename.txt" — пришлю указанный файл\n'
-    text += '/cputemp — пришлю температуру процессора'
+    text += '/cputemp — температура процессора\n'
+    text += '/kbd — клавиатура\n'
 
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
@@ -85,56 +106,29 @@ function cmdCPUTemp(cmd) {
     sendMsg(cmd.chatId, text, cmd.messageId);
 }
 
+/* Примеры клавиатур */
 function cmdKbd(cmd) {
     text = "Клавиатура";
-    switch (cmd.args) {
-        case "custom":
-            cmdKbdCustom(cmd);
-            break;
 
-        case "inline":
-            cmdKbdInline(cmd);
-            break;
-
-        case "custom clear":
-            cmdKbdEmpty(cmd);
-            break;
-
-        default:
-            cmdUnknown(cmd);
-            break;
-    }
+    cmdKbdCustom(cmd);    
 }
 
 function cmdKbdCustom(cmd) {
-    text = "Клавиатура";
+    text = "Клавиатура под полем ввода";
     kbdCode = {
         keyboard: [
-            ['HELP'],
-            ['CPUTEMP']],
-        'resize_keyboard': true,
-        'one_time_keyboard': true
+            ["/cputemp"],
+            ["Inline keyboard"],
+            ["Close keyboard"]],
+        "resize_keyboard": true,
+        "one_time_keyboard": true
     };
 
     sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
 }
 
-function cmdKbdInline(cmd) {
-    text = "Клавиатура inline";
-    kbdCode = {
-        "inline_keyboard": [[
-            {"text": "Yes","callback_data": "FOO YES"},
-            {"text": "No", "callback_data": "FOO NO"}
-       ]],
-        'resize_keyboard': true,
-        'one_time_keyboard': true
-    };
-
-    sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
-}
-
-function cmdKbdEmpty(cmd) {
-    text = "Удалил клавиатуру";
+function cmdCloseKeyboard(cmd) {
+    text = "Закрыл клавиатуру";
     kbdCode = {
         keyboard: [],
         'remove_keyboard': true
@@ -143,23 +137,32 @@ function cmdKbdEmpty(cmd) {
     sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
 }
 
-function getCmd() {
-    jsonString = dev[cmdTopic];
-    dev[cmdTopic] = "{}";
-    return JSON.parse(jsonString);
+function cmdInlineKeyboard(cmd) {
+    text = "Клавиатура в чате";
+    kbdCode = {
+        "inline_keyboard": [[
+            { "text": "Температура процессора", "callback_data": "cpuTemp" },
+            { "text": "Закрыть клавиатуру", "callback_data": "kbdInlineClose" }
+        ]],
+        "resize_keyboard": true,
+        "one_time_keyboard": true
+    };
+
+    sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
 }
 
-function getCallback() {
-    jsonString = dev[callbackTopic];
-    dev[callbackTopic] = "{}";
-    return JSON.parse(jsonString);
+function cmdInlineKeyboardClose(cmd) {
+
+    rawMsg = {
+        "method": "deleteMessage",
+        "chat_id": cmd.chatId,
+        'message_id': cmd.messageId
+    };
+    
+    sendRawMsg(rawMsg);
 }
 
-
-function isEmptyJson(jsonString) {
-    return !Object.keys(jsonString).length;
-}
-
+/* Отправка сообщений, документов и клавиатур */
 function sendMsg(chatId, text, replyTo) {
     log("{} {} {}", chatId, text, replyTo)
     msg = {
@@ -169,6 +172,12 @@ function sendMsg(chatId, text, replyTo) {
     }
 
     writeMsgToMqtt(msg);
+}
+
+function sendRawMsg(rawMsg) {
+    log("{}", rawMsg)
+
+    writeRawMsgToMqtt(rawMsg);
 }
 
 function sendDoc(chatId, text, replyTo, document) {
@@ -194,6 +203,15 @@ function sendKbd(chatId, text, replyTo, kbdCode) {
     writeMsgToMqtt(msg);
 }
 
+/* Прочее */
+function isEmptyJson(jsonString) {
+    return !Object.keys(jsonString).length;
+}
+
 function writeMsgToMqtt(msg) {
     dev[msgTopic] = JSON.stringify(msg);
+}
+
+function writeRawMsgToMqtt(rawMsg) {
+    dev[rawMsgTopic] = JSON.stringify(rawMsg);
 }

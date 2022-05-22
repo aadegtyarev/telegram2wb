@@ -16,6 +16,7 @@ bot = {
     mqttCmd: "Cmd", 						// The topic where the bot publishes commands
     mqttCallback: "Callback", 			    // The topic where the bot publishes callbacks
     mqttMsg: "Msg", 						// The topic from which the bot receives messages to send
+    mqttRawMsg: "rawMsg", 					// The topic from which the bot receives raw messages to send
     debugSwitch: "Debug", 					// Debug management topic name
     enabledSwitch: "Enabled", 				// Name of the state management topic
     parseMode: "Markdown", 					// The type of messages to be sent. Available: Markdown, HTML     
@@ -58,7 +59,8 @@ function init(token, users, deviceName, deviceTitle) {
     device.addControl(bot.debugSwitch, { type: "switch", value: false });
     device.addControl(bot.mqttCmd, { type: "text", value: "{}", readonly: true });
     device.addControl(bot.mqttCallback, { type: "text", value: "{}", readonly: true });
-    device.addControl(bot.mqttMsg, { type: "text", value: "{}", readonly: true });    
+    device.addControl(bot.mqttMsg, { type: "text", value: "{}", readonly: true });
+    device.addControl(bot.mqttRawMsg, { type: "text", value: "{}", readonly: true });
 
     writeLog("Virtual device is created");
 
@@ -111,10 +113,28 @@ function init(token, users, deviceName, deviceTitle) {
             try {
                 msg = JSON.parse(jsonString);
             } catch (error) {
-                writeLog("Incorrect message format in MQTT topic: {}".format(error.message));
+                writeLog("[mqttMessage] Incorrect message format in MQTT topic: {}".format(error.message));
             }
             if (Object.keys(msg).length) {
                 sendMessage(msg);
+            }
+        }
+    });
+
+    defineRule("mqttRawMessage ", {
+        whenChanged: "{}/{}".format(bot.deviceName, bot.mqttRawMsg),
+        then: function (newValue, devName, cellName) {
+            jsonString = newValue;
+            writeDebug("mqttRawMessage", jsonString);
+            dev[devName][cellName] = "{}";
+
+            try {
+                msg = JSON.parse(jsonString);
+            } catch (error) {
+                writeLog("[mqttRawMessage] Incorrect message format in MQTT topic: {}".format(error.message));
+            }
+            if (Object.keys(msg).length) {
+                sendRawMessage(msg);
             }
         }
     });
@@ -126,7 +146,7 @@ function init(token, users, deviceName, deviceTitle) {
         }
     });
 
-    writeLog("Connecting to the server..."); 
+    writeLog("Connecting to the server...");
     readMeInfo();
 }
 
@@ -146,12 +166,12 @@ function readMeInfo() {
                     writeLog("Connected to the server.\n");
                     writeLog(getParsedMeInfo(capturedOutput));
                 }
-            writeDebug("readMeInfo", "exitCode: {} | capturedOutput:{}".format(
+                writeDebug("readMeInfo", "exitCode: {} | capturedOutput:{}".format(
                     exitCode,
                     capturedOutput
                 ));
-            session.pausePoll = false;
-            return;
+                session.pausePoll = false;
+                return;
             }
         }
     });
@@ -398,6 +418,57 @@ function sendMessage(msg) {
     });
 }
 
+function sendRawMessage(rawMsg) {
+
+    command = '{} {}/bot{}/{} {}'.format(
+        bot.curlCommand,
+        bot.urlServer,
+        bot.token,
+        rawMsg["method"],
+        prepareRawMsg(rawMsg)
+    );
+
+    writeDebug("sendRawMessage", command);
+
+    runShellCommand(command, {
+        captureOutput: true,
+        captureErrorOutput: true,
+        exitCallback: function (exitCode, capturedOutput, capturedErrorOutput) {
+            if (exitCode === 0) {
+                writeDebug("sendRawMessage/runShellCommand", "exitCode: {} | capturedOutput:{}".format(
+                    exitCode,
+                    capturedOutput
+                ));
+            } else {
+                writeLog("[sendRawMessage/runShellCommand] exitCode: {} | capturedOutput:{} | capturedErrorOutput:{} \n|→ command: {}".format(
+                    exitCode,
+                    capturedOutput,
+                    capturedErrorOutput,
+                    command
+                ));
+            }
+        }
+    });
+}
+
+function prepareRawMsg(rawMsg) {
+    result = "";
+    for (var key in rawMsg) {
+        if (rawMsg.hasOwnProperty(key)) {
+            value = rawMsg[key];
+
+            if (typeof (value) === "object") {
+                value = JSON.stringify(value);
+            }
+
+            if (key != "method") {
+                result += "-d {}={} ".format(key, value)
+            }
+        }
+    }
+    return result;
+}
+
 function pushCommand(chatId, chatType, mentions, messageId, command, args) {
     writeDebug("pushCommand", "chatId: {}, chatType: {}, mentions: {}, messageId: {}, command: {}, args: {}".format(
         chatId,
@@ -421,17 +492,17 @@ function pushCommand(chatId, chatType, mentions, messageId, command, args) {
 
 function pushCallback(chatId, data, chatType, messageId) {
     writeDebug("pushCallback", "chatId: {}, chatType: {}, messageId: {}, data: {}".format(
-        chatId,      
+        chatId,
         data,
         chatType,
         messageId
-        )
+    )
     )
     callback = {
         chatId: chatId,
         data: data,
         chatType: chatType,
-        messageId: messageId             
+        messageId: messageId
     }
     count = session.callbacksQueue.push(callback);
     writeDebug("pushCallback", count);
@@ -461,8 +532,6 @@ function writeMqttCmd() {
 function writeMqttCallback() {
     queue = session.callbacksQueue;
     callbackValue = dev[bot.deviceName][bot.mqttCallback];
-
-    writeDebug("writeMqttCallback", "callbackValue.length {}".format(callbackValue.length));
 
     if (callbackValue.length === 2 && queue.length > 0) {
         callback = JSON.stringify(queue.shift());
@@ -495,7 +564,7 @@ function parseMessage(msg) {
     chatId = msg["chat"]["id"];
 
     if (resultType != "my_chat_member" && resultType != "old_chat_member") {
-        chatType = msg["chat"]["type"];    
+        chatType = msg["chat"]["type"];
         text = msg["text"];
         entities = msg["entities"];
         messageId = msg["message_id"];
@@ -520,22 +589,26 @@ function parseMessage(msg) {
                 if (usernamePos != -1) {
                     mentions.push(command.match(/@(.*?).+/)[0].trim());
                     command = command.slice(0, usernamePos);;
-                }                                
+                }
 
                 args = getCommandArgs(text.slice(offset + length, text.length));
                 pushCommand(chatId, chatType, mentions, messageId, command, args);
             }
+        };
+
+        if (entities === undefined && chatType === "private") {
+            pushCommand(chatId, chatType, mentions, messageId, text, "");
         }
     }
 }
 
-function parseCallback(callback){
+function parseCallback(callback) {
     chatId = callback["from"]["id"];
     data = callback["data"];
 
     if (callback.message != undefined) {
         chatType = callback["message"]["chat"]["type"];
-        messageId = callback["message"]["message_id"];    
+        messageId = callback["message"]["message_id"];
     }
 
     pushCallback(chatId, data, chatType, messageId);
@@ -543,13 +616,13 @@ function parseCallback(callback){
 
 function parseUpdates(jsonString) {
     reply = JSON.parse(jsonString);
-    results = reply["result"];    
+    results = reply["result"];
 
     for (key in results) {
         resultItem = results[key];
         session.lastReadUpdateId = resultItem["update_id"];
         resultType = getResultType(resultItem);
-        writeDebug("parseUpdates","resultType: {}".format(resultType));
+        writeDebug("parseUpdates", "resultType: {}".format(resultType));
 
         msg = resultItem[resultType];
         userName = msg["from"]["username"];
@@ -564,7 +637,7 @@ function parseUpdates(jsonString) {
                 case "callback_query":
                     parseCallback(msg);
                     break;
-    
+
                 default:
                     break;
             }
@@ -582,6 +655,7 @@ exports.pollInterval = bot.pollInterval;
 exports.mqttCmd = bot.mqttCmd;
 exports.mqttCallback = bot.mqttCallback;
 exports.mqttMsg = bot.mqttMsg;
+exports.mqttRawMsg = bot.mqttRawMsg;
 exports.getUserName = function () {
     return session.username;
 }
