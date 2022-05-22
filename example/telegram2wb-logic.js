@@ -77,6 +77,10 @@ function cmdKbd(cmd) {
             cmdKbdCustom(cmd);
             break;
 
+        case "inline":
+            cmdKbdInline(cmd);
+            break;
+
         case "custom clear":
             cmdKbdEmpty(cmd);
             break;
@@ -93,6 +97,20 @@ function cmdKbdCustom(cmd) {
         keyboard: [
             ['HELP'],
             ['CPUTEMP']],
+        'resize_keyboard': true,
+        'one_time_keyboard': true
+    };
+
+    sendKbd(cmd.chatId, text, cmd.messageId, JSON.stringify(kbdCode));
+}
+
+function cmdKbdInline(cmd) {
+    text = "Клавиатура inline";
+    kbdCode = {
+        "inline_keyboard": [[
+            {"text": "Yes","callback_data": "FOO YES"},
+            {"text": "No", "callback_data": "FOO NO"}
+       ]],
         'resize_keyboard': true,
         'one_time_keyboard': true
     };
