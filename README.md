@@ -135,6 +135,8 @@ function sendRawMessage(chatId, text){
         "chat_id": chatId,            // параметр chat_id
         "text": "'{}'".format(text),  // параметр text
     }
+    
+    writeRawMsgToMqtt(rawMsg);
 }
 
 function writeRawMsgToMqtt(rawMsg) {
