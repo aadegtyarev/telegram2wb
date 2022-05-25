@@ -130,7 +130,7 @@ function cmdKbdCustom(cmd) {
 function cmdCloseKeyboard(cmd) {
     text = "Закрыл клавиатуру";
     kbdCode = {
-        keyboard: [],
+        "keyboard": [],
         'remove_keyboard': true
     };
 
@@ -194,15 +194,14 @@ function sendDoc(chatId, text, replyTo, document) {
 function sendKbd(chatId, text, replyTo, kbdCode) {
     log("{} {} {} {}", chatId, text, replyTo, kbdCode);
 
-    rawMsg = {
-        "method": "sendMessage",
-        "chat_id": chatId,
-        "text": "'{}'".format(text),
-        "reply_to_message_id": replyTo,
-        "reply_markup": "'{}'".format(kbdCode)
+    msg = {
+        chatId: chatId,
+        text: text,
+        messageId: replyTo,
+        keyboard: kbdCode
     }
 
-    sendRawMsg(rawMsg);
+    writeMsgToMqtt(msg);
 }
 
 
