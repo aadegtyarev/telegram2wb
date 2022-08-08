@@ -624,27 +624,31 @@ function parseUpdates(jsonString) {
 
     for (key in results) {
         resultItem = results[key];
-        session.lastReadUpdateId = resultItem["update_id"];
-        resultType = getResultType(resultItem);
-        writeDebug("parseUpdates", "resultType: {}".format(resultType));
-
-        msg = resultItem[resultType];
-        userName = msg["from"]["username"];
-
-        if (isValidUser(userName)) {
-            switch (resultType) {
-                case "message":
-                case "edited_message":
-                case "my_chat_member":
-                    parseMessage(msg);
-                    break;
-                case "callback_query":
-                    parseCallback(msg);
-                    break;
-
-                default:
-                    break;
-            }
+        try {
+            session.lastReadUpdateId = resultItem["update_id"];
+            resultType = getResultType(resultItem);
+            writeDebug("parseUpdates", "resultType: {}".format(resultType));
+                        
+            msg = resultItem[resultType];
+            userName = msg["from"]["username"];
+    
+            if (isValidUser(userName)) {
+                switch (resultType) {
+                    case "message":
+                    case "edited_message":
+                    case "my_chat_member":
+                        parseMessage(msg);
+                        break;
+                    case "callback_query":
+                        parseCallback(msg);
+                        break;
+    
+                    default:
+                        break;
+                }
+            }            
+        } catch (error) {
+            writeLog("{}: {}".format(error, jsonString))
         }
     }
 }
